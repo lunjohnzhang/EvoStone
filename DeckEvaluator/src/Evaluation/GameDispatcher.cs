@@ -115,9 +115,14 @@ namespace DeckEvaluator.Evaluation
 
       public OverallStatistics Run()
       {
-         Parallel.For(0, _opponents.Count, 
-               new ParallelOptions {MaxDegreeOfParallelism = 8},
-               i => {queueGame(i);});
+         WriteOpponents("opponents1");
+         for(int i=0; i<_opponents.Count; i++)
+         {
+            queueGame(i);
+         }
+         // Parallel.For(0, _opponents.Count, 
+         //       new ParallelOptions {MaxDegreeOfParallelism = 8},
+         //       i => {queueGame(i);});
          /*
          for (int i=0; i<_opponents.Count; i++)
             queueGame(i);
@@ -150,6 +155,18 @@ namespace DeckEvaluator.Evaluation
          results.StrategyAlignment = avgStrategyAlignment;
 
          return results;
+      }
+
+      public void WriteOpponents(string path)
+      {
+         using(StreamWriter sw = new StreamWriter(path))
+         {
+            foreach(var opponent in _opponents)
+            {
+               var cardsName = opponent.Deck.GetCardNames();
+                  sw.WriteLine(string.Join("*", cardsName));
+            }
+         }
       }
    }
 }

@@ -12,5 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SabberStoneUtil\SabberStoneUtil.csproj" />
+    <ProjectReference Include="..\DeckSearch\DeckSearch.csproj" />
   </ItemGroup>
 </Project>

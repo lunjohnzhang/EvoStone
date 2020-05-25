@@ -6,6 +6,8 @@ using System.Threading;
 
 using Nett;
 
+using DeckSearch.Logging;
+
 using SabberStoneCore.Enums;
 using SabberStoneCore.Model;
 
@@ -21,40 +23,40 @@ namespace DeckEvaluator
    {
       static void Main(string[] args)
       {
-         string nodeName = args[0];
-         int nodeId = Int32.Parse(args[0]);
-         Console.WriteLine("Node Id: "+nodeId);
-			
-         // These files are for asyncronous communication between this
-         // worker and it's scheduler. 
-         //
-         // Decks to evaluate come in the inbox and are dished out of the
-         // outbox.
-         string boxesDirectory = "boxes/";
-         string inboxPath = boxesDirectory + 
-            string.Format("deck-{0,4:D4}-inbox.tml", nodeId);
-         string outboxPath = boxesDirectory +
-            string.Format("deck-{0,4:D4}-outbox.tml", nodeId);
-			
-         // Hailing
-         string activeDirectory = "active/";
-         string activeWorkerPath = activeDirectory + 
-            string.Format("worker-{0,4:D4}.txt", nodeId);
-         string activeSearchPath = activeDirectory + "search.txt";
-         if (!File.Exists(activeSearchPath))
-         {
-            Console.WriteLine("No search has been found.");
-            return;
-         }
+         // string nodeName = args[0];
+         // int nodeId = Int32.Parse(args[0]);
+         // Console.WriteLine("Node Id: "+nodeId);
+
+         // // These files are for asyncronous communication between this
+         // // worker and it's scheduler.
+         // //
+         // // Decks to evaluate come in the inbox and are dished out of the
+         // // outbox.
+         // string boxesDirectory = "boxes/";
+         // string inboxPath = boxesDirectory +
+         //    string.Format("deck-{0,4:D4}-inbox.tml", nodeId);
+         // string outboxPath = boxesDirectory +
+         //    string.Format("deck-{0,4:D4}-outbox.tml", nodeId);
+
+         // // Hailing
+         // string activeDirectory = "active/";
+         // string activeWorkerPath = activeDirectory +
+         //    string.Format("worker-{0,4:D4}.txt", nodeId);
+         // string activeSearchPath = activeDirectory + "search.txt";
+         // if (!File.Exists(activeSearchPath))
+         // {
+         //    Console.WriteLine("No search has been found.");
+         //    return;
+         // }
 
          // The opponent deck doesn't change so we can load it here.
-         string[] textLines = File.ReadAllLines(activeSearchPath);
-         Console.WriteLine("Config File: " + textLines[1]);
-         var config = Toml.ReadFile<Configuration>(textLines[1]);
+         // string[] textLines = File.ReadAllLines(activeSearchPath);
+         Console.WriteLine("Config File: " + args[0]);
+         var config = Toml.ReadFile<Configuration>(args[0]);
 
          // Apply nerfs if nerfs are available
          ApplyNerfs(config.Nerfs);
-         
+
          // Setup the pools of card decks for possible opponents.
          var deckPoolManager = new DeckPoolManager();
          deckPoolManager.AddDeckPools(config.Evaluation.DeckPools);
@@ -65,32 +67,32 @@ namespace DeckEvaluator
          var gameSuite = new GameSuite(suiteConfig.Opponents,
                                        deckPoolManager);
 
-         // Let the scheduler know we are here.
-			using (FileStream ow = File.Open(activeWorkerPath, 
-                FileMode.Create, FileAccess.Write, FileShare.None))
-			{
-				WriteText(ow, "Hail!");
-				ow.Close();
-			}
+         // // Let the scheduler know we are here.
+			// using (FileStream ow = File.Open(activeWorkerPath, 
+         //        FileMode.Create, FileAccess.Write, FileShare.None))
+			// {
+			// 	WriteText(ow, "Hail!");
+			// 	ow.Close();
+			// }
 
          // Loop while the guiding search is running.
-         while (File.Exists(activeSearchPath))
-         {
-            // Wait until we have some work.
-            while (!File.Exists(inboxPath) && File.Exists(activeSearchPath))
-            {
-               Console.WriteLine("Waiting... ("+nodeId+")");
-               Thread.Sleep(5000);
-            }
+         // while (File.Exists(activeSearchPath))
+         // {
+            // // Wait until we have some work.
+            // while (!File.Exists(inboxPath) && File.Exists(activeSearchPath))
+            // {
+            //    Console.WriteLine("Waiting... ("+nodeId+")");
+            //    Thread.Sleep(5000);
+            // }
 
-            if (!File.Exists(activeSearchPath))
-               break;
+            // if (!File.Exists(activeSearchPath))
+            //    break;
  
-            // Wait for the file to be finish being written
-            Thread.Sleep(5000);
+            // // Wait for the file to be finish being written
+            // Thread.Sleep(5000);
 
             // Run games, evaluate the deck, and then save the results.
-            var playMessage = Toml.ReadFile<PlayMatchesMessage>(inboxPath);
+            var playMessage = Toml.ReadFile<PlayMatchesMessage>(args[1]);
             Deck playerDeck = playMessage.Deck.ContructDeck();
 
             int numStrats = config.Evaluation.PlayerStrategies.Length;
@@ -107,37 +109,36 @@ namespace DeckEvaluator
                   PlayerSetup.GetStrategy(curStrat.Strategy, 
                                           config.Network,
                                           playMessage.Strategy));
-               
+
                List<PlayerSetup> opponents =
                   gameSuite.GetOpponents(curStrat.NumGames);
 
                var launcher = new GameDispatcher(
                         player, opponents
                      );
-               
-               // Run the game and collect statistics
+
                OverallStatistics stats = launcher.Run();
                stratStats[i] = new StrategyStatistics();
                stratStats[i].WinCount += stats.WinCount;
                stratStats[i].Alignment += stats.StrategyAlignment;
-               overallStats.Accumulate(stats); 
+               overallStats.Accumulate(stats);
             }
 
-            // Write the results
-            overallStats.ScaleByNumStrategies(numStrats);
-            var results = new ResultsMessage();
-            results.PlayerDeck = playMessage.Deck;
-            results.OverallStats = overallStats;
-            results.StrategyStats = stratStats;
-            Toml.WriteFile<ResultsMessage>(results, outboxPath);
+            // // Write the results
+            // overallStats.ScaleByNumStrategies(numStrats);
+            // var results = new ResultsMessage();
+            // results.PlayerDeck = playMessage.Deck;
+            // results.OverallStats = overallStats;
+            // results.StrategyStats = stratStats;
+            // Toml.WriteFile<ResultsMessage>(results, outboxPath);
            
-            // Wait for the TOML file to write (buffers are out of sync)
-            // Then tell the search that we are done writing the file.
-            Thread.Sleep(3000);
-				File.Delete(inboxPath);
+            // // Wait for the TOML file to write (buffers are out of sync)
+            // // Then tell the search that we are done writing the file.
+            // Thread.Sleep(3000);
+				// File.Delete(inboxPath);
          
-            // Cleanup.
-            GC.Collect();
+            // // Cleanup.
+            // GC.Collect();
 
             // Look at all the files in the current directory.
             // Eliminate anythings that matches our log file.
@@ -150,7 +151,7 @@ namespace DeckEvaluator
                   File.Delete(curFile); 
                }
             }*/
-         }
+         //}
       }
 
 		private static void WriteText(Stream fs, string s)
